@@ -1,3 +1,9 @@
+// Yerel saat dilimine göre YYYY-MM-DD (toISOString UTC döndürdüğü için TR'de 00:00-03:00 arası önceki güne düşüyordu)
+function todayLocal() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 export const Leaderboard = {
   key: 'gdg_civciv_runner_lb_v2',
   
@@ -22,7 +28,7 @@ export const Leaderboard = {
   getDailyTop10() {
     if (this.cachedDailyTop10) return this.cachedDailyTop10;
     const list = this.get();
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayLocal();
     this.cachedDailyTop10 = list.filter(r => r.date === today)
                .sort((a, b) => b.score - a.score)
                .slice(0, 10);
@@ -55,7 +61,7 @@ export const Leaderboard = {
   
   addRecord(name, score) {
     const list = this.get();
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayLocal();
     list.push({ name, score, date: today, ts: Date.now() });
     this.save(list);
   },
@@ -77,10 +83,10 @@ export const Leaderboard = {
         const action = prompt('Admin paneli:\n1 - Günü sıfırla\n2 - Kayıt Sil (Belirli bir kullanıcı)\n3 - JSON/CSV Dışa Aktar (Konsola)');
         
         if (action === '1') {
-          if (confirm('Emin misiniz? Tüm skorlar silinecek.')) {
-            localStorage.removeItem(this.key);
-            this.clearCache();
-            alert('Tüm günün kayıtları sıfırlandı.');
+          if (confirm('Emin misiniz? Bugünün tüm skorları silinecek.')) {
+            const today = todayLocal();
+            this.save(list.filter(r => r.date !== today));
+            alert('Bugünün kayıtları sıfırlandı.');
           }
         } else if (action === '2') {
           const nameToDel = prompt('Silmek istediğiniz oyuncunun tam ismini girin:');

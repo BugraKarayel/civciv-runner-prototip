@@ -18,6 +18,7 @@ let tick = 0;
 let flyTimer = 0;
 
 Input.init();
+UI.initNameField();
 Leaderboard.initAdmin();
 sounds.init();
 World.init();
@@ -114,6 +115,7 @@ function step(dt, now) {
       if (Input.actionJustPressed) {
         if (Leaderboard.isTop10(Score.value)) {
           StateMachine.change(States.ENTER_NAME);
+          UI.beginNameEntry();
         } else {
           StateMachine.change(States.IDLE);
         }
