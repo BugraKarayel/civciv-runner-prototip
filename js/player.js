@@ -1,0 +1,149 @@
+import { CONFIG } from './config.js';
+import { StateMachine, States } from './state.js';
+import { SPRITES, drawSprite } from './sprites.js';
+import { sounds } from './audio.js';
+import { ObstacleManager } from './obstacles.js';
+import { World } from './world.js';
+
+export class Player {
+  constructor() {
+    this.scale = 0.85;
+    this.width = 48 * this.scale;
+    this.height = 42 * this.scale;
+    this.reset();
+  }
+
+  reset() {
+    this.x = 120;
+    this.y = CONFIG.GROUND_Y - this.height;
+    this.vy = 0;
+    this.isGrounded = true;
+    this.rotation = 0;
+    this.isDead = false;
+    this.invulnerableTime = 0;
+  }
+
+  jump() {
+    if (this.isDead) return;
+
+    if (StateMachine.current === States.RUN || StateMachine.current === States.TUTORIAL) {
+      if (this.isGrounded) {
+        this.vy = CONFIG.JUMP_VELOCITY;
+        this.isGrounded = false;
+        sounds.jump();
+      }
+    } else if (StateMachine.current === States.FLY) {
+      this.vy = CONFIG.FLAP_VELOCITY;
+      this.rotation = -0.3;
+      sounds.flap();
+    }
+  }
+
+  update(dt) {
+    if (this.invulnerableTime > 0) {
+      this.invulnerableTime -= dt * (1000/60);
+    }
+
+    if (StateMachine.current === States.RUN || StateMachine.current === States.GAMEOVER || StateMachine.current === States.TUTORIAL) {
+      this.vy += CONFIG.GRAVITY_RUN * dt;
+      this.y += this.vy * dt;
+
+      // Rampadan sonra zemin biter! Rampayı atlayan boşluğa düşer.
+      const hasGround = ObstacleManager.hasGroundAt(this.x + this.width / 2);
+
+      if (hasGround && this.y >= CONFIG.GROUND_Y - this.height) {
+        this.y = CONFIG.GROUND_Y - this.height;
+        this.vy = 0;
+        this.isGrounded = true;
+        this.rotation = 0;
+      } else {
+        this.isGrounded = false;
+        this.rotation = Math.min(0.35, this.vy * 0.02);
+      }
+
+      // Boşluğa düşüp ekranın altından çıkarsa GAMEOVER!
+      if (this.y > CONFIG.CANVAS_HEIGHT + 30) {
+        if (StateMachine.current !== States.GAMEOVER) {
+          ObstacleManager.lastDeathReason = 'pit';
+          StateMachine.change(States.GAMEOVER);
+          sounds.hit();
+        }
+      }
+    } else if (StateMachine.current === States.FLY) {
+      this.vy += CONFIG.GRAVITY_FLY * dt;
+      this.y += this.vy * dt;
+      this.isGrounded = false;
+
+      // İniş fazında zemin altına girdiyse zemine basabilsin
+      if (World.landingGroundX !== null && (this.x + this.width / 2) >= World.landingGroundX) {
+        if (this.y >= CONFIG.GROUND_Y - this.height) {
+          this.y = CONFIG.GROUND_Y - this.height;
+          this.vy = 0;
+          this.isGrounded = true;
+          this.rotation = 0;
+        }
+      }
+
+      if (this.vy > 0 && !this.isGrounded) {
+        this.rotation = Math.min(0.45, this.rotation + 0.025 * dt);
+      }
+      if (this.y < 20) {
+        this.y = 20;
+        this.vy = 0;
+      }
+      // Hava modunda da ekranın altına düşmek (flappy mantığı) doğrudan Game Over'dır!
+      if (this.y > CONFIG.CANVAS_HEIGHT + 20) {
+        if (StateMachine.current !== States.GAMEOVER) {
+          ObstacleManager.lastDeathReason = 'pit';
+          StateMachine.change(States.GAMEOVER);
+          sounds.hit();
+        }
+      }
+    }
+  }
+
+  getSprite(tick) {
+    if (this.isDead || StateMachine.current === States.GAMEOVER) return SPRITES.chick.dead;
+    if ((StateMachine.current === States.RUN || StateMachine.current === States.TUTORIAL) && this.isGrounded) {
+      return (Math.floor(tick / 7) % 2 === 0) ? SPRITES.chick.run1 : SPRITES.chick.run2;
+    }
+    return this.vy < 0 ? SPRITES.chick.flapUp : SPRITES.chick.flapDown;
+  }
+
+  draw(ctx, tick) {
+    const isBlinking = this.invulnerableTime > 0 && Math.floor(this.invulnerableTime / 100) % 2 === 0;
+    if (isBlinking) {
+      ctx.globalAlpha = 0.5;
+    }
+    
+    const sprite = this.getSprite(tick);
+    const sw = sprite.width * this.scale;
+    const sh = sprite.height * this.scale;
+    const pad = CONFIG.PX * this.scale;
+
+    if (Math.abs(this.rotation) < 0.02) {
+      ctx.drawImage(sprite, this.x - pad, this.y - pad, sw, sh);
+    } else {
+      const cx = this.x + this.width / 2;
+      const cy = this.y + this.height / 2;
+      const cos = Math.cos(this.rotation);
+      const sin = Math.sin(this.rotation);
+      ctx.setTransform(cos, sin, -sin, cos, cx, cy);
+      ctx.drawImage(sprite, -this.width / 2 - pad, -this.height / 2 - pad, sw, sh);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+
+    if (isBlinking) {
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  getBounds() {
+    if (!this.bounds) this.bounds = { x: 0, y: 0, width: 0, height: 0 };
+    this.bounds.x = this.x + 10 * this.scale;
+    this.bounds.y = this.y + 8 * this.scale;
+    this.bounds.width = this.width - 20 * this.scale;
+    this.bounds.height = this.height - 16 * this.scale;
+    return this.bounds;
+  }
+}

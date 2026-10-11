@@ -1,0 +1,269 @@
+import { CONFIG } from './config.js';
+import { StateMachine, States } from './state.js';
+import { Leaderboard } from './leaderboard.js';
+import { Score } from './score.js';
+import { Input } from './input.js';
+import { ProfanityFilter } from './filter.js';
+import { ObstacleManager } from './obstacles.js';
+
+export const UI = {
+  nameInputBuffer: "",
+  isProfane: false,
+  lastDistScore: -1,
+  lastSeeds: -1,
+  cachedNetScoreText: "NET SKOR: 0",
+  cachedDistText: "MESAFE: 0m",
+  cachedSeedText: "TOHUM: 0 (+0)",
+  
+  draw(ctx, width, height) {
+    if (StateMachine.current === States.IDLE) {
+      this.drawIdle(ctx, width, height);
+    } else if (StateMachine.current === States.TUTORIAL) {
+      this.drawTutorial(ctx, width, height);
+    } else if (StateMachine.current === States.GAMEOVER) {
+      this.drawGameOver(ctx, width, height);
+    } else if (StateMachine.current === States.ENTER_NAME) {
+      this.drawEnterName(ctx, width, height);
+    } else {
+      this.drawHUD(ctx, width, height);
+    }
+  },
+
+  drawHUD(ctx, w, h) {
+    const distScore = Score.distanceScore;
+    const seeds = Score.seeds;
+    if (distScore !== this.lastDistScore || seeds !== this.lastSeeds) {
+      this.lastDistScore = distScore;
+      this.lastSeeds = seeds;
+      this.cachedNetScoreText = 'NET SKOR: ' + Score.value;
+      this.cachedDistText = 'MESAFE: ' + distScore + 'm';
+      this.cachedSeedText = 'TOHUM: ' + seeds + ' (+' + Score.seedScore + ')';
+    }
+
+    ctx.font = '13px "Press Start 2P", monospace';
+    ctx.textBaseline = 'middle';
+    
+    // 1. NET SKOR (Sol - Altın Sarısı)
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(this.cachedNetScoreText, 26, 30);
+    ctx.fillStyle = '#fde047';
+    ctx.fillText(this.cachedNetScoreText, 24, 28);
+
+    // 2. MESAFE (Orta - Parlak Beyaz / Google Dino 100m Milestone Flaş Efekti)
+    const isMilestoneFlash = ObstacleManager.isMilestoneFlashing();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(this.cachedDistText, w / 2 + 2, 30);
+    ctx.fillStyle = isMilestoneFlash ? '#fde047' : '#ffffff';
+    ctx.fillText(this.cachedDistText, w / 2, 28);
+
+    // 3. TOHUM & BONUS (Sağ - Canlı Açık Mavi)
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(this.cachedSeedText, w - 22, 30);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText(this.cachedSeedText, w - 24, 28);
+  },
+
+  drawIdle(ctx, w, h) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, w, h);
+    
+    ctx.fillStyle = '#fde047';
+    ctx.font = '30px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('CİVCİV RUNNER', w / 2, 80);
+
+    ctx.fillStyle = 'white';
+    ctx.font = '20px "Press Start 2P", monospace';
+    ctx.fillText('GÜNÜN TOP 10 SKORU', w / 2, 140);
+
+    const formatted = Leaderboard.getFormattedDailyTop10();
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.textAlign = 'left';
+    if (formatted.length === 0) {
+      ctx.fillText('Henüz skor yok!', w / 2 - 80, 200);
+    } else {
+      for (let i = 0; i < formatted.length; i++) {
+        ctx.fillText(formatted[i], w / 2 - 160, 180 + i * 25);
+      }
+    }
+
+    ctx.fillStyle = Math.floor(performance.now() / 500) % 2 === 0 ? '#ff5555' : 'white';
+    ctx.textAlign = 'center';
+    ctx.fillText('BAŞLAMAK İÇİN TIKLA VEYA SPACE', w / 2, h - 50);
+  },
+
+  drawTutorial(ctx, w, h) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = 'white';
+    ctx.font = '20px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SPACE / TIKLA = ZIPLA / UÇ', w / 2, h / 2);
+  },
+
+  drawGameOver(ctx, w, h) {
+    // Koyu kırmızı atmosferik arkaplan
+    ctx.fillStyle = 'rgba(120, 15, 25, 0.88)';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // GAME OVER Başlığı
+    ctx.font = '34px "Press Start 2P", monospace';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText('GAME OVER', w / 2 + 3, 73);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('GAME OVER', w / 2, 70);
+
+    // Boşluğa düşüş uyarısı
+    if (ObstacleManager.lastDeathReason === 'pit') {
+      ctx.font = '13px "Press Start 2P", monospace';
+      ctx.fillStyle = '#fde047';
+      ctx.fillText('! BOŞLUĞA DÜŞTÜN !', w / 2, 110);
+      ctx.fillStyle = '#fca5a5';
+      ctx.font = '11px "Press Start 2P", monospace';
+      ctx.fillText('(Rampadan uçmalıydın!)', w / 2, 130);
+    }
+
+    // Skor Döküm Paneli
+    const boxW = 540;
+    const boxH = 190;
+    const boxX = (w - boxW) / 2;
+    const boxY = ObstacleManager.lastDeathReason === 'pit' ? 155 : 125;
+
+    // Panel arka planı ve altın çerçeve
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+    // Panel Başlığı
+    ctx.font = '12px "Press Start 2P", monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('- SKOR DÖKÜMÜ -', w / 2, boxY + 28);
+
+    // 1. Satır: Mesafe Skoru
+    ctx.font = '13px "Press Start 2P", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillText('MESAFE SKORU', boxX + 32, boxY + 68);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(Score.distanceScore + ' P', boxX + boxW - 32, boxY + 68);
+
+    // 2. Satır: Tohum Bonusu
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('TOHUM BONUSU', boxX + 32, boxY + 104);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#67e8f9';
+    ctx.fillText(Score.seeds + ' x ' + (CONFIG.SEED_VALUE || 15) + ' = +' + Score.seedScore + ' P', boxX + boxW - 32, boxY + 104);
+
+    // Ayırıcı çizgi
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(boxX + 24, boxY + 128);
+    ctx.lineTo(boxX + boxW - 24, boxY + 128);
+    ctx.stroke();
+
+    // 3. Satır: NET SKOR
+    ctx.textAlign = 'left';
+    ctx.font = '15px "Press Start 2P", monospace';
+    ctx.fillStyle = '#fde047';
+    ctx.fillText('NET SKOR', boxX + 32, boxY + 158);
+    ctx.textAlign = 'right';
+    ctx.fillText(Score.value + ' PUAN', boxX + boxW - 32, boxY + 158);
+
+    // Alt Mesajlar
+    ctx.textAlign = 'center';
+    const isTop = Leaderboard.isTop10(Score.value);
+    const bottomY = boxY + boxH + 36;
+    
+    if (isTop) {
+      const flash = Math.floor(performance.now() / 400) % 2 === 0;
+      ctx.font = '13px "Press Start 2P", monospace';
+      ctx.fillStyle = flash ? '#fde047' : '#f59e0b';
+      ctx.fillText('* TEBRİKLER! GÜNÜN TOP 10 REKORU! *', w / 2, bottomY);
+    }
+
+    ctx.font = '12px "Press Start 2P", monospace';
+    ctx.fillStyle = Math.floor(performance.now() / 500) % 2 === 0 ? '#ffffff' : '#94a3b8';
+    ctx.fillText('DEVAM ETMEK İÇİN SPACE / TIKLA', w / 2, bottomY + (isTop ? 34 : 14));
+  },
+
+  drawEnterName(ctx, w, h) {
+    ctx.fillStyle = 'rgba(0,0,0,0.92)';
+    ctx.fillRect(0, 0, w, h);
+    
+    ctx.fillStyle = '#fde047';
+    ctx.font = '22px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('* YENİ REKOR! *', w / 2, h / 2 - 105);
+    
+    // Net Skor Döküm Özeti
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '12px "Press Start 2P", monospace';
+    ctx.fillText(`NET SKOR: ${Score.value} (Mesafe: ${Score.distanceScore} + Tohum: +${Score.seedScore})`, w / 2, h / 2 - 68);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px "Press Start 2P", monospace';
+    ctx.fillText('İSMİNİ YAZ VE ENTER\'A BAS:', w / 2, h / 2 - 25);
+
+    const isProfane = this.isProfane;
+
+    // Giriş kutusu (Uygunsuzluk durumunda kırmızı çerçeve)
+    ctx.fillStyle = '#1e1e24';
+    ctx.fillRect(w / 2 - 160, h / 2 + 5, 320, 52);
+    ctx.strokeStyle = isProfane ? '#ef4444' : '#3b82f6';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(w / 2 - 160, h / 2 + 5, 320, 52);
+
+    // İsim metni
+    ctx.fillStyle = isProfane ? '#f87171' : 'white';
+    ctx.font = '18px "Press Start 2P", monospace';
+    ctx.fillText(this.nameInputBuffer + (Math.floor(performance.now() / 500) % 2 === 0 ? '_' : ''), w / 2, h / 2 + 35);
+
+    // Uyarı veya bilgi mesajı
+    if (isProfane) {
+      ctx.fillStyle = '#ef4444';
+      ctx.font = '11px "Press Start 2P", monospace';
+      ctx.fillText('UYGUNSUZ İSİM! (LÜTFEN DEĞİŞTİRİN)', w / 2, h / 2 + 85);
+    } else {
+      ctx.fillStyle = '#64748b';
+      ctx.font = '11px "Press Start 2P", monospace';
+      ctx.fillText('(Maksimum 10 Karakter)', w / 2, h / 2 + 85);
+    }
+  },
+  
+  handleNameInput(e) {
+    if (StateMachine.current !== States.ENTER_NAME) return;
+    if (e.repeat && e.key !== 'Backspace') return;
+
+    if (e.key === 'Enter') {
+      const rawName = this.nameInputBuffer.trim();
+      const cleanName = ProfanityFilter.sanitize(rawName);
+
+      Leaderboard.addRecord(cleanName, Score.value);
+      this.nameInputBuffer = '';
+      this.isProfane = false;
+      StateMachine.change(States.IDLE);
+    } else if (e.key === 'Backspace') {
+      this.nameInputBuffer = this.nameInputBuffer.slice(0, -1);
+      this.isProfane = ProfanityFilter.isProfane(this.nameInputBuffer);
+    } else if (e.key.length === 1 && this.nameInputBuffer.length < 10) {
+      // Sadece güvenli karakterlere izin ver (Harf, rakam, alt çizgi, tire)
+      if (/[a-zA-Z0-9çğıöşüÇĞİÖŞÜ _\-]/.test(e.key)) {
+        this.nameInputBuffer += e.key;
+        this.isProfane = ProfanityFilter.isProfane(this.nameInputBuffer);
+      }
+    }
+  }
+};
+
+window.addEventListener('keydown', (e) => UI.handleNameInput(e));
