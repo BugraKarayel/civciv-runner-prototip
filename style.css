@@ -45,6 +45,21 @@ body {
   contain: paint;
 }
 
+/* Mobil sanal klavye için görünmez isim alanı (font-size 16px: iOS'ta otomatik zoom'u engeller) */
+.name-field {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  font-size: 16px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 canvas#gameCanvas {
   display: block;
   width: 100%;

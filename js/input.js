@@ -18,6 +18,8 @@ export const Input = {
     };
 
     window.addEventListener('keydown', (e) => {
+      // Her tuş (isim yazarken harfler dahil) boşta kalma sayacını sıfırlar
+      StateMachine.registerInput();
       this.keys[e.key] = true;
       if (StateMachine.current === States.IDLE && !e.repeat) Konami.onKey(e.key);
       if (e.code === 'Space') {
@@ -35,13 +37,11 @@ export const Input = {
       }
     });
 
-    window.addEventListener('mousedown', handleDown);
-    window.addEventListener('touchstart', (e) => {
-      // e.preventDefault(); // allow default to not break kiosk if needed, but usually we prevent
-      handleDown();
-    }, {passive: false});
-    window.addEventListener('mouseup', handleUp);
-    window.addEventListener('touchend', handleUp);
+    // Pointer olayları fare ve dokunmayı tek seferde karşılar; touchstart + taklit mousedown
+    // ile bir dokunuşun iki kez (çift zıplama / çift kanat çırpma) algılanmasını önler.
+    window.addEventListener('pointerdown', handleDown);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
   },
   
   update() {

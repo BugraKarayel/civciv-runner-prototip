@@ -18,6 +18,11 @@ export const UI = {
   cachedSeedText: "TOHUM: 0 (+0)",
   
   draw(ctx, width, height) {
+    // İsim ekranından (ör. zaman aşımıyla) çıkıldıysa görünmez alan odakta kalmasın
+    if (StateMachine.current !== States.ENTER_NAME && this.nameField && document.activeElement === this.nameField) {
+      this.nameField.blur();
+    }
+
     if (StateMachine.current === States.IDLE) {
       this.drawIdle(ctx, width, height);
     } else if (StateMachine.current === States.TUTORIAL) {
@@ -297,25 +302,81 @@ export const UI = {
     }
   },
   
+  // Mobilde sanal klavyeyi açabilmek için görünmez bir input kullanılır
+  nameField: null,
+
+  initNameField() {
+    const field = document.createElement('input');
+    field.type = 'text';
+    field.maxLength = 20;
+    field.autocomplete = 'off';
+    field.autocapitalize = 'off';
+    field.spellcheck = false;
+    field.setAttribute('enterkeyhint', 'done');
+    field.setAttribute('aria-label', 'Oyuncu ismi');
+    field.className = 'name-field';
+    document.body.appendChild(field);
+
+    field.addEventListener('input', () => {
+      if (StateMachine.current !== States.ENTER_NAME) return;
+      StateMachine.registerInput();
+      const filtered = (field.value.match(/[a-zA-Z0-9çğıöşüÇĞİÖŞÜ _\-]/g) || []).join('').slice(0, 20);
+      if (field.value !== filtered) field.value = filtered;
+      this.nameInputBuffer = filtered;
+      this.isProfane = ProfanityFilter.isProfane(filtered);
+    });
+
+    // Dokunmatik cihazlarda isim ekranına dokununca klavyeyi aç (focus kullanıcı hareketi içinde olmalı)
+    window.addEventListener('click', () => {
+      if (StateMachine.current === States.ENTER_NAME) field.focus();
+    });
+
+    this.nameField = field;
+  },
+
+  beginNameEntry() {
+    this.nameInputBuffer = '';
+    this.isProfane = false;
+    if (this.nameField) {
+      this.nameField.value = '';
+      this.nameField.focus();
+    }
+  },
+
+  submitName() {
+    const rawName = this.nameInputBuffer.trim();
+    const cleanName = ProfanityFilter.sanitize(rawName);
+
+    Leaderboard.addRecord(cleanName, Score.value);
+    this.nameInputBuffer = '';
+    this.isProfane = false;
+    if (this.nameField) {
+      this.nameField.value = '';
+      this.nameField.blur();
+    }
+    StateMachine.change(States.IDLE);
+  },
+
   handleNameInput(e) {
     if (StateMachine.current !== States.ENTER_NAME) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.submitName();
+      return;
+    }
+    // Input odaktaysa yazma işini 'input' olayı yapar
+    if (e.target === this.nameField) return;
     if (e.repeat && e.key !== 'Backspace') return;
 
-    if (e.key === 'Enter') {
-      const rawName = this.nameInputBuffer.trim();
-      const cleanName = ProfanityFilter.sanitize(rawName);
-
-      Leaderboard.addRecord(cleanName, Score.value);
-      this.nameInputBuffer = '';
-      this.isProfane = false;
-      StateMachine.change(States.IDLE);
-    } else if (e.key === 'Backspace') {
+    if (e.key === 'Backspace') {
       this.nameInputBuffer = this.nameInputBuffer.slice(0, -1);
+      if (this.nameField) this.nameField.value = this.nameInputBuffer;
       this.isProfane = ProfanityFilter.isProfane(this.nameInputBuffer);
     } else if (e.key.length === 1 && this.nameInputBuffer.length < 20) {
       // Sadece güvenli karakterlere izin ver (Harf, rakam, alt çizgi, tire)
       if (/[a-zA-Z0-9çğıöşüÇĞİÖŞÜ _\-]/.test(e.key)) {
         this.nameInputBuffer += e.key;
+        if (this.nameField) this.nameField.value = this.nameInputBuffer;
         this.isProfane = ProfanityFilter.isProfane(this.nameInputBuffer);
       }
     }
