@@ -115,7 +115,12 @@ export const World = {
       return;
     }
 
-    // RUN modunda zemin:
+    // RUN / GAMEOVER modunda zemin:
+    if (ObstacleManager.missedRamp && ObstacleManager.ramps.length === 0) {
+      // Rampa es geçildi ve ekrandan çıktı: zemin tamamen yok, tam uçurum / gökyüzü!
+      return;
+    }
+
     if (ObstacleManager.ramps.length > 0) {
       const r = ObstacleManager.ramps[0];
       const groundEnd = Math.round(r.x + r.width);
@@ -126,6 +131,9 @@ export const World = {
         ctx.rect(0, GROUND_TOP, groundEnd, CONFIG.CANVAS_HEIGHT - GROUND_TOP);
         ctx.clip();
         ctx.drawImage(GROUND_STRIP, -off, GROUND_TOP);
+        // Uçurumun sağ kenarına dikey hat
+        ctx.fillStyle = '#29170a';
+        ctx.fillRect(groundEnd - 3, GROUND_TOP, 3, CONFIG.CANVAS_HEIGHT - GROUND_TOP);
         ctx.restore();
       }
     } else {

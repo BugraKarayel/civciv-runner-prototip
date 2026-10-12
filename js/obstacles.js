@@ -157,10 +157,10 @@ export const ObstacleManager = {
   groundGraceTimer: 0,
   skyEntryBuffer: 0,
   nextSkyDistance: CONFIG.FLY_PIPE_SPACING_MIN,
-  lastSkyPipe: null,
   lastMilestone: 0,
   milestoneFlashTimer: 0,
   flyPhaseCount: 0,
+  missedRamp: false,
   
   isMilestoneFlashing() {
     return this.milestoneFlashTimer > 0 && Math.floor(this.milestoneFlashTimer / 140) % 2 === 0;
@@ -184,6 +184,7 @@ export const ObstacleManager = {
     this.milestoneFlashTimer = 0;
     this.flyPhaseCount = 0;
     this.nextSkyDistance = CONFIG.FLY_SPACING_START_MIN;
+    this.missedRamp = false;
   },
 
   // Mevcut uçuş numarasına göre boru aralığı: 1. uçuş en ferah, sonrakiler kademeli sıklaşır
@@ -200,12 +201,17 @@ export const ObstacleManager = {
     this.lastSkyPipe = null;
     this.skyEntryBuffer = CONFIG.FLY_ENTRY_BUFFER;
     this.nextSkyDistance = this.rollFlySpacing();
+    this.missedRamp = false;
   },
 
   hasGroundAt(x) {
-    // Ekranda rampa varsa, rampa noktasından sonrasında zemin yoktur!
-    if (this.ramps.length === 0) return true;
-    return x <= this.ramps[0].x + this.ramps[0].width;
+    // Rampa es geçildiyse arkasındaki zemin tamamen yok olmuştur!
+    if (this.missedRamp) return false;
+    // Ekranda rampa varsa, rampanın arkasında hiçbir zemin yoktur!
+    if (this.ramps.length > 0) {
+      return x <= this.ramps[0].x + this.ramps[0].width;
+    }
+    return true;
   },
 
   spawnLogic(dt, player, triggerFly, flyTimer) {
@@ -216,7 +222,7 @@ export const ObstacleManager = {
     
     // Ramp every ~25-35 sec
     if (StateMachine.current === States.RUN && this.timeSinceLastRamp > 25000 + Math.random() * 10000) {
-      if (this.ramps.length === 0) {
+      if (this.ramps.length === 0 && !this.missedRamp) {
         this.ramps.push(new Ramp(CONFIG.CANVAS_WIDTH + 80));
         this.timeSinceLastRamp = 0;
       }
@@ -225,7 +231,7 @@ export const ObstacleManager = {
     const lastObs = this.obstacles[this.obstacles.length - 1];
     
     if (StateMachine.current === States.RUN || StateMachine.current === States.TUTORIAL) {
-      const isRampNear = this.ramps.length > 0;
+      const isRampNear = this.ramps.length > 0 || this.missedRamp;
       const minDistance = Math.max(280, this.gameSpeed * 44) + (lastObs ? lastObs.gapBonus || 0 : 0);
       const canSpawn = !lastObs || (CONFIG.CANVAS_WIDTH - (lastObs.x + lastObs.width) > minDistance);
 
@@ -296,12 +302,19 @@ export const ObstacleManager = {
       r.update(dist);
       if (r.checkTrigger(pBox)) {
         triggerFly();
+      } else if (!r.triggered && (r.x + r.width < player.x)) {
+        // Rampadan uçulmadı, oyuncu rampayı es geçti!
+        this.missedRamp = true;
       }
     }
     // In-place GC-free filter
     let rw = 0;
     for (let i = 0; i < this.ramps.length; i++) {
-      if (!this.ramps[i].markedForDeletion) this.ramps[rw++] = this.ramps[i];
+      if (!this.ramps[i].markedForDeletion) {
+        this.ramps[rw++] = this.ramps[i];
+      } else if (!this.ramps[i].triggered && StateMachine.current === States.RUN) {
+        this.missedRamp = true;
+      }
     }
     this.ramps.length = rw;
 
@@ -426,6 +439,8 @@ export const ObstacleManager = {
     }
   },
   clearSkyPhase() {
+    this.missedRamp = false;
+    this.ramps = [];
     // Hava borularını temizle
     this.obstacles = this.obstacles.filter(o => o.type !== 'SKY_PIPE');
     this.lastSkyPipe = null;

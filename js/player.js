@@ -62,8 +62,8 @@ export class Player {
         this.rotation = Math.min(0.35, this.vy * 0.02);
       }
 
-      // Boşluğa düşüp ekranın altından çıkarsa GAMEOVER!
-      if (this.y > CONFIG.CANVAS_HEIGHT + 30) {
+      // Boşluğa düşüp ekranın altına ulaşırsa GAMEOVER!
+      if (!this.isGrounded && (this.y + this.height >= CONFIG.CANVAS_HEIGHT || this.y > CONFIG.CANVAS_HEIGHT)) {
         if (StateMachine.current !== States.GAMEOVER) {
           ObstacleManager.lastDeathReason = 'pit';
           StateMachine.change(States.GAMEOVER);
