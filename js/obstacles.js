@@ -160,6 +160,7 @@ export const ObstacleManager = {
   lastSkyPipe: null,
   lastMilestone: 0,
   milestoneFlashTimer: 0,
+  flyPhaseCount: 0,
   
   isMilestoneFlashing() {
     return this.milestoneFlashTimer > 0 && Math.floor(this.milestoneFlashTimer / 140) % 2 === 0;
@@ -181,12 +182,24 @@ export const ObstacleManager = {
     this.lastSkyPipe = null;
     this.lastMilestone = 0;
     this.milestoneFlashTimer = 0;
+    this.flyPhaseCount = 0;
+    this.nextSkyDistance = CONFIG.FLY_SPACING_START_MIN;
+  },
+
+  // Mevcut uçuş numarasına göre boru aralığı: 1. uçuş en ferah, sonrakiler kademeli sıklaşır
+  rollFlySpacing() {
+    const n = Math.max(0, this.flyPhaseCount - 1);
+    const drop = n * CONFIG.FLY_SPACING_STEP;
+    const min = Math.max(CONFIG.FLY_PIPE_SPACING_MIN, CONFIG.FLY_SPACING_START_MIN - drop);
+    const max = Math.max(CONFIG.FLY_PIPE_SPACING_MAX, CONFIG.FLY_SPACING_START_MAX - drop);
+    return min + Math.random() * (max - min);
   },
 
   startFlyPhase() {
+    this.flyPhaseCount++;
     this.lastSkyPipe = null;
     this.skyEntryBuffer = CONFIG.FLY_ENTRY_BUFFER;
-    this.nextSkyDistance = CONFIG.FLY_PIPE_SPACING_MIN;
+    this.nextSkyDistance = this.rollFlySpacing();
   },
 
   hasGroundAt(x) {
@@ -243,10 +256,8 @@ export const ObstacleManager = {
           this.lastSkyPipe = pipe;
           this.seeds.push(new Seed(CONFIG.CANVAS_WIDTH + pipe.width / 2, pipe.gapY + pipe.gap / 2));
           
-          // Borular arası standart mesafe (340px - 390px): çok sık veya seyrek olmaz, akıcı ve ritmik kalır
-          const minSpacing = CONFIG.FLY_PIPE_SPACING_MIN;
-          const maxSpacing = CONFIG.FLY_PIPE_SPACING_MAX;
-          this.nextSkyDistance = minSpacing + Math.random() * (maxSpacing - minSpacing);
+          // Aşamalı sıklık: her uçuşta borular biraz sıklaşır ama taban değerin altına inmez
+          this.nextSkyDistance = this.rollFlySpacing();
         }
       }
     }
@@ -265,11 +276,12 @@ export const ObstacleManager = {
       this.milestoneFlashTimer = Math.max(0, this.milestoneFlashTimer - dt * (1000/60));
     }
 
+    Score.setSpeed(this.gameSpeed);
     const dist = this.gameSpeed * dt;
     Score.addDistance(dist, StateMachine.current === States.FLY);
 
     // Google Dino 100m Faz / Milestone Sistemi: Her 100 metrede ses, kıvılcım ve gösterge parlaması
-    const currentMilestone = Math.floor(Score.distanceScore / 100);
+    const currentMilestone = Math.floor(Score.meters / 100);
     if (currentMilestone > this.lastMilestone) {
       this.lastMilestone = currentMilestone;
       this.milestoneFlashTimer = 1400;
@@ -320,7 +332,7 @@ export const ObstacleManager = {
         Score.addSeed();
         sounds.collectSeed();
         this.createSparks(s.x, s.y);
-        this.addFloatingText('+' + (CONFIG.SEED_VALUE || 15), s.x, s.y - 12, '#fde047');
+        this.addFloatingText('+' + Math.round((CONFIG.SEED_VALUE || 15) * Score.multiplier), s.x, s.y - 12, '#fde047');
         s.markedForDeletion = true;
       }
     }

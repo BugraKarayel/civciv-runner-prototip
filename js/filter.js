@@ -19,11 +19,19 @@ const BANNED_PATTERNS = [
   'pezevenk', 'pezeveng', 'gavat', 'kavat',
   'ebeni', 'ebenin', 'anani', 'ananı', 'bacini', 'bacını', 'sulaleni', 'sülaleni',
   'yavsak', 'yavşak',
+  'gerizekali', 'gerizekalı', 'salak', 'aptal', 'dangalak', 'andaval', 'ezik',
+  'siktir', 'sikeyim', 'sikerim', 'sikim', 'amina', 'amına', 'amini', 'aminakoyim', 'amnk',
+  'mk', 'mq', 'orosbu', 'oruspu', 'orospucocugu', 'fahise', 'fahişe', 'kancik', 'kancık',
+  'haysiyetsiz', 'serefsiz', 'şerefsiz', 'itoglu', 'itoğlu', 'ibine', 'ibneler',
+  'boktan', 'sicmak', 'sıçmak', 'sicti', 'sıçtı', 'siciyim', 'sıçayım',
+  'gavur', 'zenci', 'terorist', 'terörist', 'hitler',
 
   // İngilizce Küfürler & Slurs
-  'fuck', 'fuk', 'fck', 'bitch', 'btch',
+  'fuck', 'fuk', 'fck', 'fuc', 'fucker', 'motherfucker', 'bitch', 'btch',
   'dick', 'pussy', 'cunt', 'cock', 'whore', 'slut',
-  'fag', 'faggot', 'nigger', 'nigga'
+  'fag', 'faggot', 'nigger', 'nigga', 'niger',
+  'shit', 'bullshit', 'asshole', 'bastard', 'retard', 'rapist', 'jizz',
+  'tits', 'boobs', 'wank', 'twat', 'dumbass', 'jackass'
 ];
 
 // Masum Türkçe kelimeler (içinde 'sik' vb. geçenler)

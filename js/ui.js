@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { Konami } from './konami.js';
 import { StateMachine, States } from './state.js';
 import { Leaderboard } from './leaderboard.js';
 import { Score } from './score.js';
@@ -9,8 +10,9 @@ import { ObstacleManager } from './obstacles.js';
 export const UI = {
   nameInputBuffer: "",
   isProfane: false,
-  lastDistScore: -1,
-  lastSeeds: -1,
+  hudKey: '',
+  cachedTimeText: 'SURE 00:00',
+  cachedMultText: 'x1.0',
   cachedNetScoreText: "NET SKOR: 0",
   cachedDistText: "MESAFE: 0m",
   cachedSeedText: "TOHUM: 0 (+0)",
@@ -30,14 +32,19 @@ export const UI = {
   },
 
   drawHUD(ctx, w, h) {
-    const distScore = Score.distanceScore;
+    const value = Score.value;
     const seeds = Score.seeds;
-    if (distScore !== this.lastDistScore || seeds !== this.lastSeeds) {
-      this.lastDistScore = distScore;
-      this.lastSeeds = seeds;
-      this.cachedNetScoreText = 'NET SKOR: ' + Score.value;
-      this.cachedDistText = 'MESAFE: ' + distScore + 'm';
+    const meters = Score.meters;
+    const secs = Score.timeSeconds;
+    const mult = Math.round(Score.multiplier * 10);
+    const key = value + '|' + seeds + '|' + meters + '|' + secs + '|' + mult;
+    if (key !== this.hudKey) {
+      this.hudKey = key;
+      this.cachedNetScoreText = 'NET SKOR: ' + value;
+      this.cachedDistText = 'MESAFE: ' + meters + 'm';
       this.cachedSeedText = 'TOHUM: ' + seeds + ' (+' + Score.seedScore + ')';
+      this.cachedTimeText = 'SÜRE ' + Score.formatTime();
+      this.cachedMultText = 'HIZ ÇARPANI x' + (mult / 10).toFixed(1);
     }
 
     ctx.font = '13px "Press Start 2P", monospace';
@@ -64,6 +71,19 @@ export const UI = {
     ctx.fillText(this.cachedSeedText, w - 22, 30);
     ctx.fillStyle = '#38bdf8';
     ctx.fillText(this.cachedSeedText, w - 24, 28);
+
+    // Alt satır: süre (sol) ve hız çarpanı (sağ)
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(this.cachedTimeText, 26, 54);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillText(this.cachedTimeText, 24, 52);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(this.cachedMultText, w - 22, 54);
+    ctx.fillStyle = '#4ade80';
+    ctx.fillText(this.cachedMultText, w - 24, 52);
   },
 
   drawIdle(ctx, w, h) {
@@ -80,28 +100,64 @@ export const UI = {
     ctx.fillText('GÜNÜN TOP 10 SKORU', w / 2, 140);
 
     const formatted = Leaderboard.getFormattedDailyTop10();
-    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.font = '13px "Press Start 2P", monospace';
     ctx.textAlign = 'left';
     if (formatted.length === 0) {
       ctx.fillText('Henüz skor yok!', w / 2 - 80, 200);
     } else {
       for (let i = 0; i < formatted.length; i++) {
-        ctx.fillText(formatted[i], w / 2 - 160, 180 + i * 25);
+        ctx.fillText(formatted[i], w / 2 - 250, 180 + i * 25);
       }
     }
 
-    ctx.fillStyle = Math.floor(performance.now() / 500) % 2 === 0 ? '#ff5555' : 'white';
+    const now = performance.now();
     ctx.textAlign = 'center';
+    if (Konami.isFlashing(now)) {
+      const cols = ['#ef4444', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#a855f7'];
+      ctx.font = '16px "Press Start 2P", monospace';
+      ctx.fillStyle = cols[Math.floor(now / 120) % cols.length];
+      ctx.fillText(Konami.active ? '* KONAMI MODU AÇIK! *' : 'KONAMI MODU KAPALI', w / 2, h - 90);
+    } else if (Konami.active) {
+      ctx.font = '10px "Press Start 2P", monospace';
+      ctx.fillStyle = '#facc15';
+      ctx.fillText('* KONAMI MODU *', w / 2, h - 90);
+    }
+
+    ctx.font = '13px "Press Start 2P", monospace';
+    ctx.fillStyle = Math.floor(now / 500) % 2 === 0 ? '#ff5555' : 'white';
     ctx.fillText('BAŞLAMAK İÇİN TIKLA VEYA SPACE', w / 2, h - 50);
   },
 
   drawTutorial(ctx, w, h) {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, w, h);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
     ctx.fillStyle = 'white';
     ctx.font = '20px "Press Start 2P", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('SPACE / TIKLA = ZIPLA / UÇ', w / 2, h / 2);
+    ctx.fillText('SPACE / TIKLA = ZIPLA / UÇ', w / 2, 110);
+
+    // Puan hesaplama
+    ctx.fillStyle = '#fde047';
+    ctx.font = '16px "Press Start 2P", monospace';
+    ctx.fillText('PUAN NASIL HESAPLANIR?', w / 2, 190);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '13px "Press Start 2P", monospace';
+    ctx.fillText('NET SKOR = (MESAFE + TOHUM x ' + (CONFIG.SEED_VALUE || 15) + ') x HIZ ÇARPANI', w / 2, 232);
+
+    ctx.font = '11px "Press Start 2P", monospace';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillText('Her 10 piksel koşu = 1 puan  |  Her tohum = ' + (CONFIG.SEED_VALUE || 15) + ' puan', w / 2, 272);
+    ctx.fillStyle = '#4ade80';
+    ctx.fillText('Hızlandıkça çarpan x1.0 > x2.0 olur: hızlı alınan puan daha değerli!', w / 2, 304);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('Rampadan uçarsan Flappy moduna geçersin; düşersen oyun biter!', w / 2, 336);
+
+    const left = Math.max(0, Math.ceil((CONFIG.TUTORIAL_DURATION - StateMachine.timeInState) / 1000));
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('Başlıyor... ' + left, w / 2, 400);
   },
 
   drawGameOver(ctx, w, h) {
@@ -145,7 +201,7 @@ export const UI = {
     // Panel Başlığı
     ctx.font = '12px "Press Start 2P", monospace';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText('- SKOR DÖKÜMÜ -', w / 2, boxY + 28);
+    ctx.fillText('SÜRE ' + Score.formatTime() + '  |  ' + Score.meters + 'm  |  HIZ x' + Score.multiplier.toFixed(1), w / 2, boxY + 28);
 
     // 1. Satır: Mesafe Skoru
     ctx.font = '13px "Press Start 2P", monospace';
@@ -162,7 +218,7 @@ export const UI = {
     ctx.fillText('TOHUM BONUSU', boxX + 32, boxY + 104);
     ctx.textAlign = 'right';
     ctx.fillStyle = '#67e8f9';
-    ctx.fillText(Score.seeds + ' x ' + (CONFIG.SEED_VALUE || 15) + ' = +' + Score.seedScore + ' P', boxX + boxW - 32, boxY + 104);
+    ctx.fillText(Score.seeds + ' tohum = +' + Score.seedScore + ' P', boxX + boxW - 32, boxY + 104);
 
     // Ayırıcı çizgi
     ctx.strokeStyle = '#334155';
@@ -219,10 +275,10 @@ export const UI = {
 
     // Giriş kutusu (Uygunsuzluk durumunda kırmızı çerçeve)
     ctx.fillStyle = '#1e1e24';
-    ctx.fillRect(w / 2 - 160, h / 2 + 5, 320, 52);
+    ctx.fillRect(w / 2 - 200, h / 2 + 5, 400, 52);
     ctx.strokeStyle = isProfane ? '#ef4444' : '#3b82f6';
     ctx.lineWidth = 3;
-    ctx.strokeRect(w / 2 - 160, h / 2 + 5, 320, 52);
+    ctx.strokeRect(w / 2 - 200, h / 2 + 5, 400, 52);
 
     // İsim metni
     ctx.fillStyle = isProfane ? '#f87171' : 'white';
@@ -237,7 +293,7 @@ export const UI = {
     } else {
       ctx.fillStyle = '#64748b';
       ctx.font = '11px "Press Start 2P", monospace';
-      ctx.fillText('(Maksimum 10 Karakter)', w / 2, h / 2 + 85);
+      ctx.fillText('(Maksimum 20 Karakter)', w / 2, h / 2 + 85);
     }
   },
   
@@ -256,7 +312,7 @@ export const UI = {
     } else if (e.key === 'Backspace') {
       this.nameInputBuffer = this.nameInputBuffer.slice(0, -1);
       this.isProfane = ProfanityFilter.isProfane(this.nameInputBuffer);
-    } else if (e.key.length === 1 && this.nameInputBuffer.length < 10) {
+    } else if (e.key.length === 1 && this.nameInputBuffer.length < 20) {
       // Sadece güvenli karakterlere izin ver (Harf, rakam, alt çizgi, tire)
       if (/[a-zA-Z0-9çğıöşüÇĞİÖŞÜ _\-]/.test(e.key)) {
         this.nameInputBuffer += e.key;

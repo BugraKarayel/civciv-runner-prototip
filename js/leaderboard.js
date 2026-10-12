@@ -37,7 +37,7 @@ export const Leaderboard = {
       const r = top10[i];
       const rank = String(i + 1).padStart(2, ' ');
       const score = String(r.score).padStart(5, '0');
-      this.cachedFormattedTop10.push(`${rank}. ${r.name.padEnd(10, ' ')} ${score}`);
+      this.cachedFormattedTop10.push(`${rank}. ${r.name.padEnd(20, ' ')} ${score}`);
     }
     return this.cachedFormattedTop10;
   },

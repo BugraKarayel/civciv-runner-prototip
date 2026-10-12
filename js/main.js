@@ -8,6 +8,7 @@ import { ObstacleManager } from './obstacles.js';
 import { Score } from './score.js';
 import { Leaderboard } from './leaderboard.js';
 import { UI } from './ui.js';
+import { Konami } from './konami.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -18,6 +19,7 @@ let tick = 0;
 let flyTimer = 0;
 
 Input.init();
+Konami.onActivate = () => sounds.milestone();
 Leaderboard.initAdmin();
 sounds.init();
 World.init();
@@ -81,6 +83,7 @@ function step(dt, now) {
     player.update(dt);
     World.update(dt, ObstacleManager.gameSpeed);
     ObstacleManager.update(dt, player, triggerFly);
+    Score.addTime(dt * (1000/60));
   }
   // --- FLY ---
   else if (StateMachine.current === States.FLY) {
@@ -88,6 +91,7 @@ function step(dt, now) {
     player.update(dt);
     World.update(dt, ObstacleManager.gameSpeed);
     ObstacleManager.update(dt, player, triggerFly, flyTimer);
+    Score.addTime(dt * (1000/60));
 
     flyTimer -= dt * (1000/60);
 

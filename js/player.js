@@ -4,6 +4,7 @@ import { SPRITES, drawSprite } from './sprites.js';
 import { sounds } from './audio.js';
 import { ObstacleManager } from './obstacles.js';
 import { World } from './world.js';
+import { Konami } from './konami.js';
 
 export class Player {
   constructor() {
@@ -91,8 +92,9 @@ export class Player {
         this.y = 20;
         this.vy = 0;
       }
-      // Hava modunda da ekranın altına düşmek (flappy mantığı) doğrudan Game Over'dır!
-      if (this.y > CONFIG.CANVAS_HEIGHT + 20) {
+      // Hava modunda boşluğa düşmek (flappy mantığı) doğrudan Game Over'dır!
+      // Kalkıştan arta kalan zemin parçası katı değildir; civciv ekranın altına ulaştığı anda ölür.
+      if (!this.isGrounded && this.y + this.height >= CONFIG.CANVAS_HEIGHT) {
         if (StateMachine.current !== States.GAMEOVER) {
           ObstacleManager.lastDeathReason = 'pit';
           StateMachine.change(States.GAMEOVER);
@@ -110,12 +112,29 @@ export class Player {
     return this.vy < 0 ? SPRITES.chick.flapUp : SPRITES.chick.flapDown;
   }
 
+  // Konami easter egg: rainbow trail (cosmetic only)
+  drawRainbowTrail(ctx, tick) {
+    const cols = ['#ef4444', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#a855f7'];
+    const cy = Math.round(this.y + this.height / 2);
+    for (let i = 0; i < 12; i++) {
+      const x = Math.round(this.x - 6 - i * 7);
+      const wave = Math.round(Math.sin(tick * 0.25 + i * 0.6) * 4);
+      ctx.globalAlpha = 1 - i / 14;
+      for (let b = 0; b < cols.length; b++) {
+        ctx.fillStyle = cols[b];
+        ctx.fillRect(x, cy - 9 + b * 3 + wave, 6, 3);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
   draw(ctx, tick) {
     const isBlinking = this.invulnerableTime > 0 && Math.floor(this.invulnerableTime / 100) % 2 === 0;
     if (isBlinking) {
       ctx.globalAlpha = 0.5;
     }
     
+    if (Konami.active && StateMachine.current !== States.GAMEOVER) this.drawRainbowTrail(ctx, tick);
     const sprite = this.getSprite(tick);
     const sw = sprite.width * this.scale;
     const sh = sprite.height * this.scale;

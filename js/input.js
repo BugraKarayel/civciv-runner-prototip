@@ -1,4 +1,5 @@
-import { StateMachine } from './state.js';
+import { StateMachine, States } from './state.js';
+import { Konami } from './konami.js';
 
 export const Input = {
   actionPressed: false,
@@ -18,8 +19,12 @@ export const Input = {
 
     window.addEventListener('keydown', (e) => {
       this.keys[e.key] = true;
-      if (e.code === 'Space' || e.code === 'ArrowUp') {
+      if (StateMachine.current === States.IDLE && !e.repeat) Konami.onKey(e.key);
+      if (e.code === 'Space') {
         handleDown();
+      } else if (e.code === 'ArrowUp') {
+        // Menüde ↑ oyunu başlatmaz (Konami kodu girilebilsin)
+        if (StateMachine.current !== States.IDLE) handleDown();
       }
     });
     
